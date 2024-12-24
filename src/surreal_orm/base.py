@@ -1,7 +1,9 @@
 import json
 import logging
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import Any, ClassVar, List, Optional, Type, TypeVar, Union
+from typing import (Any, AsyncGenerator, ClassVar, List, Optional, Type,
+                    TypeVar, Union)
 
 from pydantic import BaseModel
 from surrealdb import AsyncSurrealDB, RecordID  # type: ignore
@@ -38,6 +40,21 @@ class ObjectModel(BaseModel):
         """Format datetime in ISO format with Z instead of +00:00"""
         return dt.isoformat().replace('+00:00', 'Z')
 
+    @classmethod
+    @asynccontextmanager
+    async def _get_db(cls) -> AsyncGenerator[AsyncSurrealDB, None]:
+        """Get a configured database connection as a context manager."""
+        db = AsyncSurrealDB(url="ws://localhost:8000")
+        try:
+            await db.connect()
+            await db.sign_in("root", "root")
+            await db.use("namespace", "database_name")
+            logger.info("Database connection established")
+            yield db
+        finally:
+            await db.close()
+            logger.info("Database connection closed")
+
     async def asave(self) -> None:
         if not self.created:
             self.created = datetime.now(timezone.utc)  # Make created timezone-aware
@@ -51,16 +68,10 @@ class ObjectModel(BaseModel):
         data = _prepare_data(self)
         logger.debug("Prepared data for save: %s", data)
 
-        async with AsyncSurrealDB(url="ws://localhost:8000") as db:
-            await db.connect()
-            await db.sign_in("root", "root")
-            await db.use("namespace", "database_name")
-            logger.info("Database connection established for save operation")
+        async with self._get_db() as db:
             result = await db.query(f"UPSERT {table_name} CONTENT {data}")
-            await db.close()
-        logger.debug("Save operation result: %s", result)
-        self.id = result[0]["result"][0]["id"]
-        logger.info("Successfully saved record with ID: %s", self.id)
+            self.id = result[0]["result"][0]["id"]
+            logger.info("Successfully saved record with ID: %s", self.id)
     
     @classmethod
     async def aget_all(cls: Type[T], order_by: Optional[str] = None, order_direction: Optional[str] = None) -> List[T]:
@@ -75,52 +86,33 @@ class ObjectModel(BaseModel):
             if order_by:
                 query += f" ORDER BY {order_by} {order_direction}"
 
-            async with AsyncSurrealDB(url="ws://localhost:8000") as db:
-                await db.connect()
-                await db.sign_in("root", "root")
-                await db.use("namespace", "database_name")
-                logger.info("Database connection established for fetch operation")
+            async with cls._get_db() as db:
                 results = await db.query(query)
-                await db.close()
-            logger.debug("Fetch all operation results: %s", results)
-            return [target_class(**item) for item in results[0]["result"]]  
+                return [target_class(**item) for item in results[0]["result"]]
         except Exception as e: 
             logger.error("Failed to fetch records: %s", str(e), exc_info=True)
             raise RuntimeError(f"Failed to fetch records: {str(e)}")
 
-    
     @classmethod
-    async def aget(cls: Type[T], id: Union[ str, RecordID]) -> T:
+    async def aget(cls: Type[T], id: Union[str, RecordID]) -> Optional[T]:
         try:
-            
-            async with AsyncSurrealDB(url="ws://localhost:8000") as db:
-                await db.connect()
-                await db.sign_in("root", "root")
-                await db.use("namespace", "database_name")
-                logger.info("Database connection established for get operation")
+            async with cls._get_db() as db:
                 results = await db.select(id)
-                await db.close()
-
-            logger.debug("Get operation results: %s", results)
-            return cls(**results)
+                if results is None:
+                    logger.info(f"No record found with ID: {id}")
+                    return None
+                return cls(**results)
         except Exception as e:
             logger.error("Failed to fetch record: %s", str(e), exc_info=True)
             raise RuntimeError(f"Failed to fetch record: {str(e)}")
     
     async def adelete(self) -> None:
         try:
-            if not self.table_name:
-                raise ValueError("table_name not set in model class")
             if not self.id:
                 raise ValueError("Cannot delete record without id")
 
-            async with AsyncSurrealDB(url="ws://localhost:8000") as db:
-                await db.connect()
-                await db.sign_in("root", "root")
-                await db.use("namespace", "database_name")
-                logger.info("Database connection established for delete operation")
+            async with self._get_db() as db:
                 await db.delete(self.id)
-                await db.close()
                 logger.info("Successfully deleted record with ID: %s", self.id)
         except Exception as e:
             logger.error("Failed to delete record: %s", str(e), exc_info=True)
