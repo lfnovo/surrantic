@@ -201,3 +201,70 @@ async def test_aget_all_with_ordering(mock_async_db: AsyncMock) -> None:
     await TestModel.aget_all(order_by="name", order_direction="DESC")
     
     mock_async_db.query.assert_called_once_with("SELECT * FROM test_table ORDER BY name DESC")
+
+def test_surrantic_config_singleton():
+    from surrantic.base import SurranticConfig
+    
+    config1 = SurranticConfig.get_instance()
+    config2 = SurranticConfig.get_instance()
+    
+    assert config1 is config2
+
+def test_surrantic_config_default_values():
+    from surrantic.base import SurranticConfig, SURREAL_ADDRESS, SURREAL_USER, SURREAL_PASS, SURREAL_NAMESPACE, SURREAL_DATABASE
+    
+    config = SurranticConfig.get_instance()
+    
+    assert config.address == SURREAL_ADDRESS
+    assert config.user == SURREAL_USER
+    assert config.password == SURREAL_PASS
+    assert config.namespace == SURREAL_NAMESPACE
+    assert config.database == SURREAL_DATABASE
+
+def test_surrantic_config_override():
+    from surrantic.base import SurranticConfig
+    
+    # Store original values
+    config = SurranticConfig.get_instance()
+    original_address = config.address
+    original_user = config.user
+    
+    # Override some values
+    SurranticConfig.configure(
+        address="ws://testdb:8000",
+        user="testuser"
+    )
+    
+    # Check overridden values
+    assert config.address == "ws://testdb:8000"
+    assert config.user == "testuser"
+    
+    # Check non-overridden values remain the same
+    assert config.password == original_user
+    
+    # Reset for other tests
+    SurranticConfig.configure(
+        address=original_address,
+        user=original_user
+    )
+
+@pytest.mark.asyncio
+async def test_db_connection_uses_config(mock_async_db: AsyncMock):
+    from surrantic.base import SurranticConfig
+    
+    # Configure custom connection details
+    SurranticConfig.configure(
+        address="ws://testdb:8000",
+        user="testuser",
+        password="testpass",
+        namespace="testns",
+        database="testdb"
+    )
+    
+    model = TestModel(name="Test", age=25)
+    await model.asave()
+    
+    # Verify the connection was made with our custom config
+    mock_async_db.connect.assert_called_once()
+    mock_async_db.sign_in.assert_called_once_with("testuser", "testpass")
+    mock_async_db.use.assert_called_once_with("testns", "testdb")

@@ -86,6 +86,37 @@ print(f"Updated at: {user.updated}")  # Automatically set
 
 ## Configuration
 
+### Database Connection
+
+By default, Surrantic uses environment variables for database configuration:
+
+```bash
+SURREAL_ADDRESS=ws://localhost:8000
+SURREAL_USER=root
+SURREAL_PASS=root
+SURREAL_NAMESPACE=test
+SURREAL_DATABASE=test
+```
+
+You can also override these settings directly in your code using `SurranticConfig`:
+
+```python
+from surrantic import SurranticConfig
+
+# Override all or some of the connection settings
+SurranticConfig.configure(
+    address="ws://mydb:8000",
+    user="myuser",
+    password="mypass",
+    namespace="myns",
+    database="mydb"
+)
+
+# Your models will now use the new configuration
+user = User(name="John", email="john@example.com")
+await user.asave()  # Uses the custom configuration
+```
+
 ### Logging
 
 Surrantic includes configurable logging:

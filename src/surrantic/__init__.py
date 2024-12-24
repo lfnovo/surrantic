@@ -1,3 +1,3 @@
-from .base import ObjectModel
+from .base import ObjectModel, SurranticConfig
 
-__all__ = ["ObjectModel"]
+__all__ = ["ObjectModel", "SurranticConfig"]

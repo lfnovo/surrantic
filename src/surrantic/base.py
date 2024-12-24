@@ -45,6 +45,56 @@ def _prepare_data(obj: BaseModel) -> str:
             items.append(f"{field_name}: {_prepare_value(value)}")
     return "{ " + ", ".join(items) + " }"
 
+class SurranticConfig:
+    """Configuration class for Surrantic database connection.
+    
+    This class allows overriding the default database configuration that would
+    otherwise be loaded from environment variables.
+    """
+    _instance = None
+    
+    def __init__(self):
+        self.address = SURREAL_ADDRESS
+        self.user = SURREAL_USER
+        self.password = SURREAL_PASS
+        self.namespace = SURREAL_NAMESPACE
+        self.database = SURREAL_DATABASE
+    
+    @classmethod
+    def get_instance(cls) -> 'SurranticConfig':
+        """Get the singleton instance of SurranticConfig"""
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+    
+    @classmethod
+    def configure(cls, 
+                 address: Optional[str] = None,
+                 user: Optional[str] = None,
+                 password: Optional[str] = None,
+                 namespace: Optional[str] = None,
+                 database: Optional[str] = None) -> None:
+        """Configure the database connection parameters.
+        
+        Args:
+            address: The SurrealDB server address
+            user: The username for authentication
+            password: The password for authentication
+            namespace: The namespace to use
+            database: The database to use
+        """
+        config = cls.get_instance()
+        if address is not None:
+            config.address = address
+        if user is not None:
+            config.user = user
+        if password is not None:
+            config.password = password
+        if namespace is not None:
+            config.namespace = namespace
+        if database is not None:
+            config.database = database
+
 class ObjectModel(BaseModel):
     """Base model class for SurrealDB objects with CRUD operations.
     
@@ -82,11 +132,12 @@ class ObjectModel(BaseModel):
         Yields:
             AsyncSurrealDB: The configured database connection
         """
-        db = AsyncSurrealDB(url=SURREAL_ADDRESS)
+        config = SurranticConfig.get_instance()
+        db = AsyncSurrealDB(url=config.address)
         try:
             await db.connect()
-            await db.sign_in(SURREAL_USER, SURREAL_PASS)
-            await db.use(SURREAL_NAMESPACE, SURREAL_DATABASE)
+            await db.sign_in(config.user, config.password)
+            await db.use(config.namespace, config.database)
             logger.debug("Database connection established")
             yield db
         finally:
@@ -99,13 +150,14 @@ class ObjectModel(BaseModel):
         """Get a configured synchronous database connection as a context manager.
         
         Yields:
-            SurrealDB: The configured synchronous database connection
+            SurrealDB: The configured database connection
         """
-        db = SurrealDB(SURREAL_ADDRESS)
+        config = SurranticConfig.get_instance()
+        db = SurrealDB(url=config.address)
         try:
             db.connect()
-            db.sign_in(SURREAL_USER, SURREAL_PASS)
-            db.use(SURREAL_NAMESPACE, SURREAL_DATABASE)
+            db.sign_in(config.user, config.password)
+            db.use(config.namespace, config.database)
             logger.debug("Database connection established")
             yield db
         finally:
