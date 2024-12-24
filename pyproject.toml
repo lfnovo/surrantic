@@ -1,6 +1,6 @@
 [project]
 name = "surrantic"
-version = "0.1.1"
+version = "0.1.2"
 description = "A simple Pydantic ORM implementation for SurrealDB"
 readme = "README.md"
 authors = [
@@ -52,6 +52,7 @@ addopts = "-ra -q --cov=surrantic"
 
 [dependency-groups]
 dev = [
+    "ipykernel>=6.29.5",
     "mypy>=1.14.0",
     "pytest>=8.3.4",
     "pytest-asyncio>=0.25.0",
