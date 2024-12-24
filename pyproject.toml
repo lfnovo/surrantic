@@ -1,22 +1,59 @@
 [project]
-name = "surreal-orm"
+name = "surrantic"
 version = "0.1.0"
-description = "Add your description here"
+description = "A simple Pydantic ORM implementation for SurrealDB"
 readme = "README.md"
 authors = [
     { name = "LUIS NOVO", email = "lfnovo@gmail.com" }
 ]
-requires-python = ">=3.10.6"
-dependencies = [
-    "pydantic>=2.10.4",
-    "surrealdb>=0.4.1",
+license = { text = "MIT" }
+requires-python = ">=3.11"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Operating System :: OS Independent",
 ]
+dependencies = [
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.1",
+    "surrealdb>=0.3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/lfnovo/surrantic"
+Repository = "https://github.com/lfnovo/surrantic.git"
+Documentation = "https://github.com/lfnovo/surrantic#readme"
+"Bug Tracker" = "https://github.com/lfnovo/surrantic/issues"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra -q --cov=surrantic"
+
 [dependency-groups]
 dev = [
-    "ipykernel>=6.29.5",
+    "mypy>=1.14.0",
+    "pytest>=8.3.4",
+    "pytest-asyncio>=0.25.0",
+    "pytest-cov>=6.0.0",
 ]

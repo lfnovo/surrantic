@@ -1,14 +1,76 @@
-# Python-generated files
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[oc]
-build/
+*.py[cod]
+*$py.class
+
+.windsurfrules
+
+# C extensions
+*.so
+
+# Distribution / packaging
 dist/
+build/
+*.egg-info/
+*.egg
+MANIFEST
 wheels/
-*.egg-info
+*.whl
 
-# Virtual environments
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+*.py,cover
+.pytest_cache/
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# Environment directories
+.env
 .venv
+env/
+venv/
+ENV/
 
-external_pkg_ref
-surreal_data
-.vscode
+# IDE settings
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# Logs and databases
+*.log
+*.sqlite
+*.db
+surreal_data/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+external_pkg_ref/
+*.bak
+*.tmp
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+dmypy.json
