@@ -1,0 +1,22 @@
+[project]
+name = "surreal-orm"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "LUIS NOVO", email = "lfnovo@gmail.com" }
+]
+requires-python = ">=3.10.6"
+dependencies = [
+    "pydantic>=2.10.4",
+    "surrealdb>=0.4.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "ipykernel>=6.29.5",
+]

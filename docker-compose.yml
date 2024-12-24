@@ -1,0 +1,12 @@
+services:
+  surrealdb:
+    image: surrealdb/surrealdb:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./surreal_data:/mydata
+    # environment:
+    #   - SURREAL_EXPERIMENTAL_GRAPHQL=true
+    command: start --log info --user root --pass root rocksdb:/mydata/mydatabase.db
+    #pull_policy: always
+    user: root
