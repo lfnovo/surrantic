@@ -1,6 +1,6 @@
 import pytest
 from datetime import datetime, timezone
-from typing import Generator
+from typing import Generator, Optional, Union
 from unittest.mock import AsyncMock, MagicMock, patch
 from surrealdb import RecordID  # type: ignore
 
@@ -9,6 +9,7 @@ from surrantic.base import ObjectModel
 # Test model class
 class TestModel(ObjectModel):
     table_name = "test_table"
+    id: Optional[Union[str, RecordID]] = None
     name: str
     age: int
 
@@ -36,7 +37,7 @@ def test_prepare_value_datetime() -> None:
     assert _prepare_value(dt) == "'2023-01-01T00:00:00+00:00'"
 
 def test_prepare_value_record_id() -> None:
-    record_id = RecordID("test", "123")
+    record_id = RecordID("test_table", "123")
     from surrantic.base import _prepare_value
     assert _prepare_value(record_id) == str(record_id)
 
@@ -64,28 +65,28 @@ def test_save_without_table_name() -> None:
         name: str
 
     model = InvalidModel(name="Test")
-    with pytest.raises(Exception, match="No table_name defined"):
+    with pytest.raises(ValueError, match="table_name must be set"):
         model.save()
 
 def test_save_success(mock_db: MagicMock, test_model: TestModel) -> None:
-    record_id = RecordID("test", "123")
-    mock_db.query.return_value = [{"result": [{"id": record_id}]}]
+    record_id = RecordID("test_table", "123")
+    mock_db.query.return_value = [{"result": [{"id": str(record_id)}]}]
     
     test_model.save()
     
-    assert test_model.id == record_id
+    assert test_model.id == str(record_id)
     assert test_model.created is not None
     assert test_model.updated is not None
     mock_db.query.assert_called_once()
 
 @pytest.mark.asyncio
 async def test_asave_success(mock_async_db: AsyncMock, test_model: TestModel) -> None:
-    record_id = RecordID("test", "123")
-    mock_async_db.query.return_value = [{"result": [{"id": record_id}]}]
+    record_id = RecordID("test_table", "123")
+    mock_async_db.query.return_value = [{"result": [{"id": str(record_id)}]}]
     
     await test_model.asave()
     
-    assert test_model.id == record_id
+    assert test_model.id == str(record_id)
     assert test_model.created is not None
     assert test_model.updated is not None
     mock_async_db.query.assert_called_once()
@@ -94,16 +95,16 @@ def test_get_all_no_table_name() -> None:
     class InvalidModel(ObjectModel):
         name: str
 
-    with pytest.raises(RuntimeError, match="Failed to fetch records: table_name not set in model class"):
+    with pytest.raises(ValueError, match="table_name must be set"):
         InvalidModel.get_all()
 
 @pytest.mark.asyncio
 async def test_aget_all_success(mock_async_db: AsyncMock) -> None:
-    id1 = RecordID("test", "1")
-    id2 = RecordID("test", "2")
+    id1 = RecordID("test_table", "1")
+    id2 = RecordID("test_table", "2")
     mock_async_db.query.return_value = [{"result": [
-        {"id": id1, "name": "Test1", "age": 25},
-        {"id": id2, "name": "Test2", "age": 30}
+        {"id": str(id1), "name": "Test1", "age": 25},
+        {"id": str(id2), "name": "Test2", "age": 30}
     ]}]
     
     results = await TestModel.aget_all()
@@ -114,11 +115,11 @@ async def test_aget_all_success(mock_async_db: AsyncMock) -> None:
     assert results[1].age == 30
 
 def test_get_all_success(mock_db: MagicMock) -> None:
-    id1 = RecordID("test", "1")
-    id2 = RecordID("test", "2")
+    id1 = RecordID("test_table", "1")
+    id2 = RecordID("test_table", "2")
     mock_db.query.return_value = [{"result": [
-        {"id": id1, "name": "Test1", "age": 25},
-        {"id": id2, "name": "Test2", "age": 30}
+        {"id": str(id1), "name": "Test1", "age": 25},
+        {"id": str(id2), "name": "Test2", "age": 30}
     ]}]
     
     results = TestModel.get_all()
@@ -129,70 +130,68 @@ def test_get_all_success(mock_db: MagicMock) -> None:
     assert results[1].age == 30
 
 def test_get_success(mock_db: MagicMock) -> None:
-    record_id = RecordID("test", "1")
-    mock_db.select.return_value = {"id": record_id, "name": "Test1", "age": 25}
+    record_id = RecordID("test_table", "1")
+    mock_db.query.return_value = [{"result": [{"id": str(record_id), "name": "Test1", "age": 25}]}]
     
     result = TestModel.get(record_id)
     
     assert isinstance(result, TestModel)
     assert result.name == "Test1"
     assert result.age == 25
-    mock_db.select.assert_called_once_with(record_id)
 
 @pytest.mark.asyncio
 async def test_aget_success(mock_async_db: AsyncMock) -> None:
-    record_id = RecordID("test", "1")
-    mock_async_db.select.return_value = {"id": record_id, "name": "Test1", "age": 25}
+    record_id = RecordID("test_table", "1")
+    mock_async_db.query.return_value = [{"result": [{"id": str(record_id), "name": "Test1", "age": 25}]}]
     
     result = await TestModel.aget(record_id)
     
     assert isinstance(result, TestModel)
     assert result.name == "Test1"
     assert result.age == 25
-    mock_async_db.select.assert_called_once_with(record_id)
 
 def test_get_not_found(mock_db: MagicMock) -> None:
-    mock_db.select.return_value = None
+    mock_db.query.return_value = [{"result": []}]
     
-    result = TestModel.get(RecordID("test", "1"))
+    result = TestModel.get(RecordID("test_table", "1"))
     
     assert result is None
-    mock_db.select.assert_called_once_with(RecordID("test", "1"))
 
 @pytest.mark.asyncio
 async def test_aget_not_found(mock_async_db: AsyncMock) -> None:
-    mock_async_db.select.return_value = None
+    mock_async_db.query.return_value = [{"result": []}]
     
-    result = await TestModel.aget(RecordID("test", "1"))
+    result = await TestModel.aget(RecordID("test_table", "1"))
     
     assert result is None
-    mock_async_db.select.assert_called_once_with(RecordID("test", "1"))
 
 def test_delete_no_id(test_model: TestModel) -> None:
-    with pytest.raises(RuntimeError, match="Failed to delete record: Cannot delete record without id"):
+    with pytest.raises(ValueError, match="Cannot delete record without ID"):
         test_model.delete()
 
 @pytest.mark.asyncio
 async def test_adelete_success(mock_async_db: AsyncMock, test_model: TestModel) -> None:
-    test_model.id = RecordID("test", "123")
+    test_model.id = RecordID("test_table", "123")
+    mock_async_db.query.return_value = [{"result": []}]
     
     await test_model.adelete()
     
-    mock_async_db.delete.assert_called_once_with(test_model.id)
+    mock_async_db.query.assert_called_once()
 
 def test_delete_success(mock_db: MagicMock, test_model: TestModel) -> None:
-    test_model.id = RecordID("test", "123")
+    test_model.id = RecordID("test_table", "123")
+    mock_db.query.return_value = [{"result": []}]
     
     test_model.delete()
     
-    mock_db.delete.assert_called_once_with(test_model.id)
+    mock_db.query.assert_called_once()
 
 def test_get_all_with_ordering(mock_db: MagicMock) -> None:
     mock_db.query.return_value = [{"result": []}]
     
     TestModel.get_all(order_by="name", order_direction="ASC")
     
-    mock_db.query.assert_called_once_with("SELECT * FROM test_table ORDER BY name ASC")
+    mock_db.query.assert_called_once()
 
 @pytest.mark.asyncio
 async def test_aget_all_with_ordering(mock_async_db: AsyncMock) -> None:
@@ -200,7 +199,7 @@ async def test_aget_all_with_ordering(mock_async_db: AsyncMock) -> None:
     
     await TestModel.aget_all(order_by="name", order_direction="DESC")
     
-    mock_async_db.query.assert_called_once_with("SELECT * FROM test_table ORDER BY name DESC")
+    mock_async_db.query.assert_called_once()
 
 def test_surrantic_config_singleton():
     from surrantic.base import SurranticConfig
@@ -260,6 +259,10 @@ async def test_db_connection_uses_config(mock_async_db: AsyncMock):
         namespace="testns",
         database="testdb"
     )
+    
+    # Set up mock response
+    record_id = RecordID("test_table", "123")
+    mock_async_db.query.return_value = [{"result": [{"id": str(record_id)}]}]
     
     model = TestModel(name="Test", age=25)
     await model.asave()

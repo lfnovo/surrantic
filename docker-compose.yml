@@ -2,7 +2,7 @@ services:
   surrealdb:
     image: surrealdb/surrealdb:latest
     ports:
-      - "8000:8000"
+      - "8013:8000"
     volumes:
       - ./surreal_data:/mydata
     # environment:

@@ -1,6 +1,6 @@
 [project]
 name = "surrantic"
-version = "0.1.5"
+version = "0.1.7"
 description = "A simple Pydantic ORM implementation for SurrealDB"
 readme = "README.md"
 authors = [
@@ -21,8 +21,9 @@ classifiers = [
 ]
 dependencies = [
     "pydantic>=2.0.0",
+    "pytest-mock>=3.14.0",
     "python-dotenv>=1.0.0",
-    "surrealdb>=0.3.0",
+    "surrealdb>=0.4.1",
 ]
 
 [project.urls]
@@ -49,7 +50,12 @@ check_untyped_defs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-ra -q --cov=surrantic"
+addopts = "-v -m 'not integration'"
+markers = [
+    "integration: marks tests as integration tests"
+]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
 
 [dependency-groups]
 dev = [
