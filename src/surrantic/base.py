@@ -15,11 +15,11 @@ from .logging_config import setup_logging
 setup_logging(logging.DEBUG)
 
 # Default database configuration
-SURREAL_ADDRESS = os.getenv("SURREAL_ADDRESS")
-SURREAL_USER = os.getenv("SURREAL_USER")
-SURREAL_PASS = os.getenv("SURREAL_PASS")
-SURREAL_NAMESPACE = os.getenv("SURREAL_NAMESPACE")
-SURREAL_DATABASE = os.getenv("SURREAL_DATABASE")
+SURREAL_ADDRESS = os.getenv("SURREAL_ADDRESS", None)
+SURREAL_USER = os.getenv("SURREAL_USER", None)
+SURREAL_PASS = os.getenv("SURREAL_PASS", None)
+SURREAL_NAMESPACE = os.getenv("SURREAL_NAMESPACE", None)
+SURREAL_DATABASE = os.getenv("SURREAL_DATABASE", None)
 
 class SurranticConfig:
     """Configuration class for Surrantic database connection.

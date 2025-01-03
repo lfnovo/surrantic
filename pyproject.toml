@@ -1,6 +1,6 @@
 [project]
 name = "surrantic"
-version = "0.2.1"
+version = "0.2.2"
 description = "A simple Pydantic ORM implementation for SurrealDB"
 readme = "README.md"
 authors = [
