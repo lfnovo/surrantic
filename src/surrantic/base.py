@@ -3,8 +3,7 @@ import logging
 import os
 from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timezone
-from typing import (Any, AsyncGenerator, ClassVar, Generator, List, Optional,
-                    Type, TypeVar, Union)
+from typing import Any, AsyncGenerator, ClassVar, Generator, List, Optional, Type, TypeVar, Union
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, field_serializer
@@ -45,6 +44,14 @@ def _prepare_data(obj: BaseModel) -> str:
             items.append(f"{field_name}: {_prepare_value(value)}")
     return "{ " + ", ".join(items) + " }"
 
+def _log_query(query: str, result: Any = None) -> None:
+    """Log query and result if debug is enabled"""
+    config = SurranticConfig.get_instance()
+    if config.debug:
+        logger.debug("Query: %s", query)
+        if result is not None:
+            logger.debug("Result: %s", result)
+
 class SurranticConfig:
     """Configuration class for Surrantic database connection.
     
@@ -59,6 +66,7 @@ class SurranticConfig:
         self.password = SURREAL_PASS
         self.namespace = SURREAL_NAMESPACE
         self.database = SURREAL_DATABASE
+        self.debug = False
     
     @classmethod
     def get_instance(cls) -> 'SurranticConfig':
@@ -73,7 +81,8 @@ class SurranticConfig:
                  user: Optional[str] = None,
                  password: Optional[str] = None,
                  namespace: Optional[str] = None,
-                 database: Optional[str] = None) -> None:
+                 database: Optional[str] = None,
+                 debug: Optional[bool] = None) -> None:
         """Configure the database connection parameters.
         
         Args:
@@ -82,6 +91,7 @@ class SurranticConfig:
             password: The password for authentication
             namespace: The namespace to use
             database: The database to use
+            debug: If True, all queries and results will be logged
         """
         config = cls.get_instance()
         if address is not None:
@@ -94,6 +104,8 @@ class SurranticConfig:
             config.namespace = namespace
         if database is not None:
             config.database = database
+        if debug is not None:
+            config.debug = debug
 
 class ObjectModel(BaseModel):
     """Base model class for SurrealDB objects with CRUD operations.
@@ -170,60 +182,6 @@ class ObjectModel(BaseModel):
             db.close()
             logger.debug("Database connection closed")
 
-    async def asave(self) -> None:
-        """Asynchronously save or update the record in SurrealDB.
-        
-        Updates the created and updated timestamps automatically.
-        Creates a new record if id is None, otherwise updates existing record.
-        
-        Raises:
-            Exception: If table_name is not defined
-            RuntimeError: If the database operation fails
-        """
-        if not self.created:
-            self.created = datetime.now(timezone.utc)  # Make created timezone-aware
-        self.updated = datetime.now(timezone.utc)      # Make updated timezone-aware
-
-        if type(self).table_name:
-            table_name = type(self).table_name
-        else:
-            raise Exception("No table_name defined")
-                
-        data = _prepare_data(self)
-        logger.debug("Prepared data for save: %s", data)
-
-        async with self._get_db() as db:
-            result = await db.query(f"UPSERT {table_name} CONTENT {data}")
-            self.id = result[0]["result"][0]["id"]
-            logger.info("Successfully saved record with ID: %s", self.id)
-
-    def save(self) -> None:
-        """Synchronously save or update the record in SurrealDB.
-        
-        Updates the created and updated timestamps automatically.
-        Creates a new record if id is None, otherwise updates existing record.
-        
-        Raises:
-            Exception: If table_name is not defined
-            RuntimeError: If the database operation fails
-        """
-        if not self.created:
-            self.created = datetime.now(timezone.utc)
-        self.updated = datetime.now(timezone.utc)
-
-        if type(self).table_name:
-            table_name = type(self).table_name
-        else:
-            raise Exception("No table_name defined")
-                
-        data = _prepare_data(self)
-        logger.debug("Prepared data for save: %s", data)
-
-        with self._get_sync_db() as db:
-            result = db.query(f"UPSERT {table_name} CONTENT {data}")
-            self.id = result[0]["result"][0]["id"]
-            logger.info("Successfully saved record with ID: %s", self.id)
-    
     @classmethod
     async def aget_all(cls: Type[T], order_by: Optional[str] = None, order_direction: Optional[str] = None) -> List[T]:
         """Asynchronously retrieve all records from the table.
@@ -239,23 +197,19 @@ class ObjectModel(BaseModel):
             ValueError: If table_name is not set
             RuntimeError: If the database operation fails
         """
-        try:
-            if cls.table_name:
-                target_class = cls
-                table_name = cls.table_name
-            else:
-                raise ValueError("table_name not set in model class")
-
-            query = f"SELECT * FROM {table_name}"
-            if order_by:
-                query += f" ORDER BY {order_by} {order_direction}"
-
-            async with cls._get_db() as db:
-                results = await db.query(query)
-                return [target_class(**item) for item in results[0]["result"]]
-        except Exception as e: 
-            logger.error("Failed to fetch records: %s", str(e), exc_info=True)
-            raise RuntimeError(f"Failed to fetch records: {str(e)}")
+        if not cls.table_name:
+            raise ValueError("table_name must be set")
+        
+        query = f"SELECT * FROM {cls.table_name}"
+        if order_by:
+            direction = order_direction or "ASC"
+            query += f" ORDER BY {order_by} {direction}"
+            
+        _log_query(query)
+        async with cls._get_db() as db:
+            result = await db.query(query)
+            _log_query(query, result)
+            return [cls(**item) for item in result[0]["result"]]
 
     @classmethod
     def get_all(cls: Type[T], order_by: Optional[str] = None, order_direction: Optional[str] = None) -> List[T]:
@@ -272,23 +226,19 @@ class ObjectModel(BaseModel):
             ValueError: If table_name is not set
             RuntimeError: If the database operation fails
         """
-        try:
-            if cls.table_name:
-                target_class = cls
-                table_name = cls.table_name
-            else:
-                raise ValueError("table_name not set in model class")
-
-            query = f"SELECT * FROM {table_name}"
-            if order_by:
-                query += f" ORDER BY {order_by} {order_direction}"
-
-            with cls._get_sync_db() as db:
-                results = db.query(query)
-                return [target_class(**item) for item in results[0]["result"]]
-        except Exception as e: 
-            logger.error("Failed to fetch records: %s", str(e), exc_info=True)
-            raise RuntimeError(f"Failed to fetch records: {str(e)}")
+        if not cls.table_name:
+            raise ValueError("table_name must be set")
+        
+        query = f"SELECT * FROM {cls.table_name}"
+        if order_by:
+            direction = order_direction or "ASC"
+            query += f" ORDER BY {order_by} {direction}"
+            
+        _log_query(query)
+        with cls._get_sync_db() as db:
+            result = db.query(query)
+            _log_query(query, result)
+            return [cls(**item) for item in result[0]["result"]]
 
     @classmethod
     async def aget(cls: Type[T], id: Union[str, RecordID]) -> Optional[T]:
@@ -303,16 +253,14 @@ class ObjectModel(BaseModel):
         Raises:
             RuntimeError: If the database operation fails
         """
-        try:
-            async with cls._get_db() as db:
-                results = await db.select(id)
-                if results is None:
-                    logger.info(f"No record found with ID: {id}")
-                    return None
-                return cls(**results)
-        except Exception as e:
-            logger.error("Failed to fetch record: %s", str(e), exc_info=True)
-            raise RuntimeError(f"Failed to fetch record: {str(e)}")
+        query = f"SELECT * FROM {id}"
+        _log_query(query)
+        async with cls._get_db() as db:
+            result = await db.query(query)
+            _log_query(query, result)
+            if result and result[0]:
+                return cls(**result[0][0])
+        return None
 
     @classmethod
     def get(cls: Type[T], id: Union[str, RecordID]) -> Optional[T]:
@@ -327,17 +275,77 @@ class ObjectModel(BaseModel):
         Raises:
             RuntimeError: If the database operation fails
         """
-        try:
-            with cls._get_sync_db() as db:
-                results = db.select(id)
-                if results is None:
-                    logger.info(f"No record found with ID: {id}")
-                    return None
-                return cls(**results)
-        except Exception as e:
-            logger.error("Failed to fetch record: %s", str(e), exc_info=True)
-            raise RuntimeError(f"Failed to fetch record: {str(e)}")
-    
+        query = f"SELECT * FROM {id}"
+        _log_query(query)
+        with cls._get_sync_db() as db:
+            result = db.query(query)
+            _log_query(query, result)
+            if result and result[0]:
+                return cls(**result[0][0])
+        return None
+
+    async def asave(self) -> None:
+        """Asynchronously save or update the record in SurrealDB.
+        
+        Updates the created and updated timestamps automatically.
+        Creates a new record if id is None, otherwise updates existing record.
+        
+        Raises:
+            Exception: If table_name is not defined
+            RuntimeError: If the database operation fails
+        """
+        if not self.table_name:
+            raise ValueError("table_name must be set")
+
+        now = datetime.now(timezone.utc)
+        if not self.created:
+            self.created = now
+        self.updated = now
+
+        data = _prepare_data(self)
+        if self.id:
+            query = f"UPDATE {self.id} SET {data}"
+        else:
+            query = f"CREATE {self.table_name} SET {data}"
+
+        _log_query(query)
+        async with self._get_db() as db:
+            result = await db.query(query)
+            _log_query(query, result)
+            if result and result[0]:
+                self.id = RecordID.from_string(result[0][0]["id"])
+
+    def save(self) -> None:
+        """Synchronously save or update the record in SurrealDB.
+        
+        Updates the created and updated timestamps automatically.
+        Creates a new record if id is None, otherwise updates existing record.
+        
+        Raises:
+            Exception: If table_name is not defined
+            RuntimeError: If the database operation fails
+        """
+        if not self.table_name:
+            raise ValueError("table_name must be set")
+
+        now = datetime.now(timezone.utc)
+        if not self.created:
+            self.created = now
+        self.updated = now
+
+        data = _prepare_data(self)
+        if self.id:
+            query = f"UPDATE {self.id} SET {data}"
+        else:
+            query = f"CREATE {self.table_name} SET {data}"
+
+        _log_query(query)
+        with self._get_sync_db() as db:
+            result = db.query(query)
+            _log_query(query, result)
+            if result and result[0]:
+                self.id = RecordID.from_string(result[0][0]["id"])
+
     async def adelete(self) -> None:
         """Asynchronously delete the record from the database.
         
@@ -345,16 +353,14 @@ class ObjectModel(BaseModel):
             ValueError: If the record has no ID
             RuntimeError: If the database operation fails
         """
-        try:
-            if not self.id:
-                raise ValueError("Cannot delete record without id")
+        if not self.id:
+            raise ValueError("Cannot delete record without ID")
 
-            async with self._get_db() as db:
-                await db.delete(self.id)
-                logger.info("Successfully deleted record with ID: %s", self.id)
-        except Exception as e:
-            logger.error("Failed to delete record: %s", str(e), exc_info=True)
-            raise RuntimeError(f"Failed to delete record: {str(e)}")
+        query = f"DELETE {self.id}"
+        _log_query(query)
+        async with self._get_db() as db:
+            result = await db.query(query)
+            _log_query(query, result)
 
     def delete(self) -> None:
         """Synchronously delete the record from the database.
@@ -363,13 +369,11 @@ class ObjectModel(BaseModel):
             ValueError: If the record has no ID
             RuntimeError: If the database operation fails
         """
-        try:
-            if not self.id:
-                raise ValueError("Cannot delete record without id")
+        if not self.id:
+            raise ValueError("Cannot delete record without ID")
 
-            with self._get_sync_db() as db:
-                db.delete(self.id)
-                logger.info("Successfully deleted record with ID: %s", self.id)
-        except Exception as e:
-            logger.error("Failed to delete record: %s", str(e), exc_info=True)
-            raise RuntimeError(f"Failed to delete record: {str(e)}")    
+        query = f"DELETE {self.id}"
+        _log_query(query)
+        with self._get_sync_db() as db:
+            result = db.query(query)
+            _log_query(query, result)

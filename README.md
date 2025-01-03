@@ -127,18 +127,21 @@ You can also override these settings directly in your code using `SurranticConfi
 ```python
 from surrantic import SurranticConfig
 
-# Override all or some of the connection settings
 SurranticConfig.configure(
-    address="ws://mydb:8000",
-    user="myuser",
-    password="mypass",
-    namespace="myns",
-    database="mydb"
+    address="ws://localhost:8000",
+    user="root",
+    password="root",
+    namespace="test",
+    database="test",
+    debug=True  # Enable query logging
 )
+```
 
-# Your models will now use the new configuration
-user = User(name="John", email="john@example.com")
-await user.asave()  # Uses the custom configuration
+When debug mode is enabled, all queries and their results will be logged:
+
+```
+DEBUG:surrantic.base:Query: SELECT * FROM user ORDER BY created DESC
+DEBUG:surrantic.base:Result: [{"id": "user:123", "name": "John Doe", "email": "john@example.com"}]
 ```
 
 ### Logging
