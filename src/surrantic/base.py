@@ -7,7 +7,7 @@ from typing import (Any, AsyncGenerator, ClassVar, Generator, List, Optional,
                     Type, TypeVar, Union)
 
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 from surrealdb import AsyncSurrealDB, RecordID, SurrealDB  # type: ignore
 
 from .logging_config import setup_logging
@@ -111,6 +111,12 @@ class ObjectModel(BaseModel):
     table_name: ClassVar[str] = ""
     created: Optional[datetime] = None
     updated: Optional[datetime] = None
+
+    @field_serializer('id')
+    def serialize_id(self, value: Optional[RecordID]) -> Optional[str]:
+        if value is None:
+            return None
+        return str(value)
 
     @staticmethod
     def _format_datetime_z(dt: datetime) -> str:

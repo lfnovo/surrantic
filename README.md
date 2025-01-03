@@ -84,6 +84,30 @@ print(f"Created at: {user.created}")  # Automatically set
 print(f"Updated at: {user.updated}")  # Automatically set
 ```
 
+### RecordID Serialization
+
+When using `RecordID` fields in your models, you should add a field serializer to properly convert them to strings when using `model_dump()`. Here's an example:
+
+```python
+from pydantic import field_serializer
+from surrealdb import RecordID
+
+class User(ObjectModel):
+    table_name = "user"
+    name: str
+
+class Post(ObjectModel):
+    table_name = "post"
+    title: str
+    author: RecordID  # Reference to a User
+
+    @field_serializer('author')
+    def serialize_author(self, author: RecordID) -> str:
+        return str(author)
+```
+
+Note: The base `ObjectModel` already handles the serialization of the `id` field.
+
 ## Configuration
 
 ### Database Connection
