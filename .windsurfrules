@@ -4,7 +4,8 @@ This project uses uv for dependency management. That means you should use:
 - `uv build` for building
 
 
-After we are done with a new features, we: 
+After we are done with a new feature, I can ask you to publish. In that case, we: 
+- Run the complete test suite
 - Bump the version in @pyproject.toml
 - Commit and push, merge to main.
 - Generate a new tag

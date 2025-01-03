@@ -35,14 +35,14 @@ def _prepare_value(value: Any) -> str:
         return str(value)
     return json.dumps(value)
 
-def _prepare_data(obj: BaseModel) -> str:
-    """Convert Pydantic model to SurrealQL object format using model fields"""
+def _prepare_data(obj: Any) -> str:
+    """Prepare data for database query."""
     items = []
-    for field_name, field in obj.model_fields.items():
+    for field_name in obj.model_fields:
         value = getattr(obj, field_name)
         if value is not None:
-            items.append(f"{field_name}: {_prepare_value(value)}")
-    return "{ " + ", ".join(items) + " }"
+            items.append(f"{field_name} = {_prepare_value(value)}")
+    return ", ".join(items)
 
 def _log_query(query: str, result: Any = None) -> None:
     """Log a query and its result.
@@ -301,58 +301,75 @@ class ObjectModel(BaseModel):
             return None
 
     async def asave(self) -> None:
-        """Asynchronously save the model to the database.
-
-        Raises:
-            ValueError: If table_name is not set
-            RuntimeError: If the database operation fails
-        """
+        """Save the model asynchronously."""
         if not self.table_name:
             raise ValueError("table_name must be set")
 
+        if not self.created:
+            self.created = datetime.now(timezone.utc)
         self.updated = datetime.now(timezone.utc)
         if not self.created:
             self.created = self.updated
 
         data = _prepare_data(self)
+        query = f"UPDATE {self.table_name} SET {data}"
         if self.id:
-            query = f"UPDATE {self.id} CONTENT {data}"
+            # Extract just the record ID part without the table name
+            record_id = str(self.id).split(":")[-1]
+            query = f"UPDATE {self.table_name}:{record_id} SET {data}"
         else:
-            query = f"CREATE {self.table_name} CONTENT {data}"
+            query = f"CREATE {self.table_name} SET {data}"
 
-        _log_query(query)
         async with self._get_db() as db:
             result = await db.query(query)
             _log_query(query, result)
-            if result and len(result) > 0 and 'result' in result[0] and len(result[0]['result']) > 0:
-                self.id = result[0]['result'][0]["id"]
+            if result and len(result) > 0 and 'result' in result[0]:
+                result_data = result[0]['result']
+                if isinstance(result_data, str):
+                    # If the result is a string (record ID), use it directly
+                    self.id = result_data
+                elif isinstance(result_data, list) and len(result_data) > 0:
+                    # If the result is a list with dictionary items
+                    if isinstance(result_data[0], dict):
+                        self.id = result_data[0]["id"]
+                    else:
+                        self.id = result_data[0]
+            logger.debug(f"asave result: {result}")
 
     def save(self) -> None:
-        """Synchronously save the model to the database.
-
-        Raises:
-            ValueError: If table_name is not set
-            RuntimeError: If the database operation fails
-        """
+        """Synchronously save the model to the database."""
         if not self.table_name:
             raise ValueError("table_name must be set")
 
+        if not self.created:
+            self.created = datetime.now(timezone.utc)
         self.updated = datetime.now(timezone.utc)
         if not self.created:
             self.created = self.updated
 
         data = _prepare_data(self)
+        query = f"UPDATE {self.table_name} SET {data}"
         if self.id:
-            query = f"UPDATE {self.id} CONTENT {data}"
+            # Extract just the record ID part without the table name
+            record_id = str(self.id).split(":")[-1]
+            query = f"UPDATE {self.table_name}:{record_id} SET {data}"
         else:
-            query = f"CREATE {self.table_name} CONTENT {data}"
+            query = f"CREATE {self.table_name} SET {data}"
 
-        _log_query(query)
         with self._get_sync_db() as db:
             result = db.query(query)
             _log_query(query, result)
-            if result and len(result) > 0 and 'result' in result[0] and len(result[0]['result']) > 0:
-                self.id = result[0]['result'][0]["id"]
+            if result and len(result) > 0 and 'result' in result[0]:
+                result_data = result[0]['result']
+                if isinstance(result_data, str):
+                    # If the result is a string (record ID), use it directly
+                    self.id = result_data
+                elif isinstance(result_data, list) and len(result_data) > 0:
+                    # If the result is a list with dictionary items
+                    if isinstance(result_data[0], dict):
+                        self.id = result_data[0]["id"]
+                    else:
+                        self.id = result_data[0]
 
     async def adelete(self) -> None:
         """Asynchronously delete the record from the database.

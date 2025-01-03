@@ -51,8 +51,8 @@ def test_prepare_data() -> None:
     model = TestModel(name="Test", age=25)
     from surrantic.base import _prepare_data
     data = _prepare_data(model)
-    assert 'name: "Test"' in data
-    assert 'age: 25' in data
+    assert 'name = "Test"' in data
+    assert 'age = 25' in data
 
 def test_format_datetime_z() -> None:
     dt = datetime(2023, 1, 1, tzinfo=timezone.utc)
