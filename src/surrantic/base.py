@@ -11,50 +11,15 @@ from surrealdb import AsyncSurrealDB, RecordID, SurrealDB  # type: ignore
 
 from .logging_config import setup_logging
 
-# Load environment variables
-load_dotenv()
-
 # Configure logging
 setup_logging(logging.DEBUG)
 
-# Get database configuration from environment
+# Default database configuration
 SURREAL_ADDRESS = os.getenv("SURREAL_ADDRESS", "ws://localhost:8000")
 SURREAL_USER = os.getenv("SURREAL_USER", "root")
 SURREAL_PASS = os.getenv("SURREAL_PASS", "root")
 SURREAL_NAMESPACE = os.getenv("SURREAL_NAMESPACE", "test")
 SURREAL_DATABASE = os.getenv("SURREAL_DATABASE", "test")
-
-T = TypeVar("T", bound="ObjectModel")
-logger = logging.getLogger(__name__)
-
-def _prepare_value(value: Any) -> str:
-    """Convert Python value to SurrealDBQL value format"""
-    if isinstance(value, datetime):
-        return f"'{value.isoformat()}'"
-    if isinstance(value, RecordID):
-        return str(value)
-    return json.dumps(value)
-
-def _prepare_data(obj: Any) -> str:
-    """Prepare data for database query."""
-    items = []
-    for field_name in obj.model_fields:
-        value = getattr(obj, field_name)
-        if value is not None:
-            items.append(f"{field_name} = {_prepare_value(value)}")
-    return ", ".join(items)
-
-def _log_query(query: str, result: Any = None) -> None:
-    """Log a query and its result.
-
-    Args:
-        query: The query to log
-        result: Optional result to log
-    """
-    logger.debug(f"Query: {query}")
-    if result is not None:
-        logger.debug(f"Result type: {type(result)}")
-        logger.debug(f"Result: {result}")
 
 class SurranticConfig:
     """Configuration class for Surrantic database connection.
@@ -65,6 +30,10 @@ class SurranticConfig:
     _instance = None
     
     def __init__(self):
+        # Load environment variables
+        load_dotenv()
+        
+        # Get database configuration from environment
         self.address = SURREAL_ADDRESS
         self.user = SURREAL_USER
         self.password = SURREAL_PASS
@@ -78,6 +47,11 @@ class SurranticConfig:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
+    
+    @classmethod
+    def reset(cls) -> None:
+        """Reset the configuration to default values."""
+        cls._instance = None
     
     @classmethod
     def configure(cls, 
@@ -110,6 +84,38 @@ class SurranticConfig:
             config.database = database
         if debug is not None:
             config.debug = debug
+
+T = TypeVar("T", bound="ObjectModel")
+logger = logging.getLogger(__name__)
+
+def _prepare_value(value: Any) -> str:
+    """Convert Python value to SurrealDBQL value format"""
+    if isinstance(value, datetime):
+        return f"'{value.isoformat()}'"
+    if isinstance(value, RecordID):
+        return str(value)
+    return json.dumps(value)
+
+def _prepare_data(obj: Any) -> str:
+    """Prepare data for database query."""
+    items = []
+    for field_name in obj.model_fields:
+        value = getattr(obj, field_name)
+        if value is not None:
+            items.append(f"{field_name} = {_prepare_value(value)}")
+    return ", ".join(items)
+
+def _log_query(query: str, result: Any = None) -> None:
+    """Log a query and its result.
+
+    Args:
+        query: The query to log
+        result: Optional result to log
+    """
+    logger.debug(f"Query: {query}")
+    if result is not None:
+        logger.debug(f"Result type: {type(result)}")
+        logger.debug(f"Result: {result}")
 
 class ObjectModel(BaseModel):
     """Base model class for SurrealDB objects with CRUD operations.

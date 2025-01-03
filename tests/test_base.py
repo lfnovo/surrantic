@@ -212,6 +212,8 @@ def test_surrantic_config_singleton():
 def test_surrantic_config_default_values():
     from surrantic.base import SurranticConfig, SURREAL_ADDRESS, SURREAL_USER, SURREAL_PASS, SURREAL_NAMESPACE, SURREAL_DATABASE
     
+    # Reset to default values
+    SurranticConfig.reset()
     config = SurranticConfig.get_instance()
     
     assert config.address == SURREAL_ADDRESS
