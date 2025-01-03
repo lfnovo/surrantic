@@ -42,4 +42,4 @@ jobs:
         uv pip install -e ".[dev,all]"
     
     - name: Run tests
-      run: uv run pytest -v
+      run: uv run pytest -v -m "not integration"

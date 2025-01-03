@@ -15,11 +15,11 @@ from .logging_config import setup_logging
 setup_logging(logging.DEBUG)
 
 # Default database configuration
-SURREAL_ADDRESS = os.getenv("SURREAL_ADDRESS", "ws://localhost:8000")
-SURREAL_USER = os.getenv("SURREAL_USER", "root")
-SURREAL_PASS = os.getenv("SURREAL_PASS", "root")
-SURREAL_NAMESPACE = os.getenv("SURREAL_NAMESPACE", "test")
-SURREAL_DATABASE = os.getenv("SURREAL_DATABASE", "test")
+SURREAL_ADDRESS = os.getenv("SURREAL_ADDRESS")
+SURREAL_USER = os.getenv("SURREAL_USER")
+SURREAL_PASS = os.getenv("SURREAL_PASS")
+SURREAL_NAMESPACE = os.getenv("SURREAL_NAMESPACE")
+SURREAL_DATABASE = os.getenv("SURREAL_DATABASE")
 
 class SurranticConfig:
     """Configuration class for Surrantic database connection.
@@ -40,50 +40,80 @@ class SurranticConfig:
         self.namespace = SURREAL_NAMESPACE
         self.database = SURREAL_DATABASE
         self.debug = False
-    
+
     @classmethod
     def get_instance(cls) -> 'SurranticConfig':
         """Get the singleton instance of SurranticConfig"""
-        if cls._instance is None:
-            cls._instance = cls()
+        if not cls._instance:
+            cls._instance = cls.__new__(cls)
+            cls._instance.address = None
+            cls._instance.user = None
+            cls._instance.password = None
+            cls._instance.namespace = None
+            cls._instance.database = None
+            cls._instance.debug = False
+        
+        # Validate configuration
+        if not all([
+            cls._instance.address,
+            cls._instance.user,
+            cls._instance.password,
+            cls._instance.namespace,
+            cls._instance.database
+        ]):
+            raise ValueError(
+                "Missing required configuration. Please set all required options: "
+                "address, user, password, namespace, database"
+            )
+        
         return cls._instance
     
     @classmethod
-    def reset(cls) -> None:
-        """Reset the configuration to default values."""
-        cls._instance = None
-    
-    @classmethod
-    def configure(cls, 
-                 address: Optional[str] = None,
-                 user: Optional[str] = None,
-                 password: Optional[str] = None,
-                 namespace: Optional[str] = None,
-                 database: Optional[str] = None,
-                 debug: Optional[bool] = None) -> None:
-        """Configure the database connection parameters.
-        
+    def configure(cls, **kwargs) -> None:
+        """Configure the database connection.
+
         Args:
-            address: The SurrealDB server address
-            user: The username for authentication
-            password: The password for authentication
-            namespace: The namespace to use
-            database: The database to use
-            debug: If True, all queries and results will be logged
+            **kwargs: Configuration options to override. Valid options are:
+                address (str): Database address
+                user (str): Database user
+                password (str): Database password
+                namespace (str): Database namespace
+                database (str): Database name
+                debug (bool): Enable debug mode
         """
-        config = cls.get_instance()
-        if address is not None:
-            config.address = address
-        if user is not None:
-            config.user = user
-        if password is not None:
-            config.password = password
-        if namespace is not None:
-            config.namespace = namespace
-        if database is not None:
-            config.database = database
-        if debug is not None:
-            config.debug = debug
+        if not cls._instance:
+            cls._instance = cls.__new__(cls)
+            cls._instance.address = None
+            cls._instance.user = None
+            cls._instance.password = None
+            cls._instance.namespace = None
+            cls._instance.database = None
+            cls._instance.debug = False
+        
+        # Update configuration
+        for key, value in kwargs.items():
+            if hasattr(cls._instance, key):
+                setattr(cls._instance, key, value)
+            else:
+                raise ValueError(f"Invalid configuration option: {key}")
+        
+        # Validate configuration
+        if not all([
+            cls._instance.address,
+            cls._instance.user,
+            cls._instance.password,
+            cls._instance.namespace,
+            cls._instance.database
+        ]):
+            raise ValueError(
+                "Missing required configuration. Please set all required options: "
+                "address, user, password, namespace, database"
+            )
+
+    @classmethod
+    def reset(cls) -> None:
+        """Reset configuration to default values."""
+        cls._instance = None
 
 T = TypeVar("T", bound="ObjectModel")
 logger = logging.getLogger(__name__)
@@ -163,13 +193,12 @@ class ObjectModel(BaseModel):
         config = SurranticConfig.get_instance()
         db = AsyncSurrealDB(url=config.address)
         try:
+            logger.info(f"Connecting to SurrealDB at {config.address}")
             await db.connect()
             await db.sign_in(config.user, config.password)
             await db.use(config.namespace, config.database)
-            _log_query("Database connection established")
             yield db
         finally:
-            _log_query("Database connection closed")
             await db.close()
 
     @classmethod
@@ -183,13 +212,12 @@ class ObjectModel(BaseModel):
         config = SurranticConfig.get_instance()
         db = SurrealDB(url=config.address)
         try:
+            logger.info(f"Connecting to SurrealDB at {config.address}")
             db.connect()
             db.sign_in(config.user, config.password)
             db.use(config.namespace, config.database)
-            _log_query("Database connection established")
             yield db
         finally:
-            _log_query("Database connection closed")
             db.close()
 
     @classmethod

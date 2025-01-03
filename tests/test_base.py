@@ -210,44 +210,45 @@ def test_surrantic_config_singleton():
     assert config1 is config2
 
 def test_surrantic_config_default_values():
-    from surrantic.base import SurranticConfig, SURREAL_ADDRESS, SURREAL_USER, SURREAL_PASS, SURREAL_NAMESPACE, SURREAL_DATABASE
+    from surrantic.base import SurranticConfig
     
     # Reset to default values
     SurranticConfig.reset()
-    config = SurranticConfig.get_instance()
     
-    assert config.address == SURREAL_ADDRESS
-    assert config.user == SURREAL_USER
-    assert config.password == SURREAL_PASS
-    assert config.namespace == SURREAL_NAMESPACE
-    assert config.database == SURREAL_DATABASE
+    # Should raise ValueError if we try to get instance without configuration
+    with pytest.raises(ValueError, match="Missing required configuration"):
+        SurranticConfig.get_instance()
 
 def test_surrantic_config_override():
     from surrantic.base import SurranticConfig
     
-    # Store original values
+    # Reset to default values
+    SurranticConfig.reset()
+    
+    # Configure with test values
+    test_address = "ws://localhost:8000"
+    test_user = "test_user"
+    test_pass = "test_pass"
+    test_ns = "test_ns"
+    test_db = "test_db"
+    
+    SurranticConfig.configure(
+        address=test_address,
+        user=test_user,
+        password=test_pass,
+        namespace=test_ns,
+        database=test_db,
+        debug=True
+    )
+    
     config = SurranticConfig.get_instance()
-    original_address = config.address
-    original_user = config.user
     
-    # Override some values
-    SurranticConfig.configure(
-        address="ws://testdb:8000",
-        user="testuser"
-    )
-    
-    # Check overridden values
-    assert config.address == "ws://testdb:8000"
-    assert config.user == "testuser"
-    
-    # Check non-overridden values remain the same
-    assert config.password == original_user
-    
-    # Reset for other tests
-    SurranticConfig.configure(
-        address=original_address,
-        user=original_user
-    )
+    assert config.address == test_address
+    assert config.user == test_user
+    assert config.password == test_pass
+    assert config.namespace == test_ns
+    assert config.database == test_db
+    assert config.debug is True
 
 @pytest.mark.asyncio
 async def test_db_connection_uses_config(mock_async_db: AsyncMock):
