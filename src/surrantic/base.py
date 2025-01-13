@@ -124,6 +124,8 @@ def _prepare_value(value: Any) -> str:
         return f"'{value.isoformat()}'"
     if isinstance(value, RecordID):
         return str(value)
+    if isinstance(value, BaseModel):
+        return json.dumps(value.model_dump())
     return json.dumps(value)
 
 def _prepare_data(obj: Any) -> str:
